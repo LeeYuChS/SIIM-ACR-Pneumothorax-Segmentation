@@ -1,0 +1,5 @@
+checkpoints*
+siim-acr-pneumothorax*
+__pycache__*
+.vscode/
+subset*
