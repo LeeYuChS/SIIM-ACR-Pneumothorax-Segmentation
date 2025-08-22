@@ -152,7 +152,6 @@ def train_model(
         print(f'\nEpoch {epoch+1}/{num_epochs}')
         print('-' * 60)
         
-        # 記錄當前學習率
         current_lr = optimizer.param_groups[0]['lr']
         history['learning_rates'].append(current_lr)
         print(f'Current Learning Rate: {current_lr:.2e}')
@@ -162,8 +161,8 @@ def train_model(
         train_metrics = SegmentationMetrics()
         
         progress_bar = tqdm(train_loader, desc='Training')
-        for images, masks in progress_bar:
-            images, masks = images.to(device), masks.to(device)
+        for images, masks, weights in progress_bar:
+            images, masks, weights = images.to(device), masks.to(device), weights.to(device)
             
             optimizer.zero_grad()
             outputs = model(images)
@@ -171,7 +170,7 @@ def train_model(
             if outputs.dim() == 4 and outputs.shape[1] == 1:
                 outputs = outputs.squeeze(1)
             
-            loss = criterion(outputs, masks.float())
+            loss = criterion(outputs, masks.float(), sample_weight=weights)
             loss.backward()
             optimizer.step()
             
@@ -186,7 +185,7 @@ def train_model(
         
         with torch.no_grad():
             progress_bar = tqdm(val_loader, desc='Validation')
-            for images, masks in progress_bar:
+            for images, masks, _ in progress_bar:
                 images, masks = images.to(device), masks.to(device)
                 
                 outputs = model(images)
@@ -251,18 +250,30 @@ class WeightedFocalLoss(nn.Module):
         if self.class_weights is not None:
             self.class_weights = torch.tensor(self.class_weights, dtype=torch.float32)
 
-    def forward(self, inputs, targets):
+    def forward(self, inputs, targets, sample_weight=None):
         BCE_loss = F.binary_cross_entropy_with_logits(inputs, targets, reduction='none')
         pt = torch.exp(-BCE_loss)
         focal_loss = self.alpha * (1-pt)**self.gamma * BCE_loss
         
-        if self.class_weights is not None:
-            weight = self.class_weights.to(inputs.device)
-            weight = weight[1] * targets + weight[0] * (1 - targets)
-            focal_loss *= weight
-        
+        # if self.class_weights is not None:
+        weight = self.class_weights.to(inputs.device)
+        weight = weight[1] * targets + weight[0] * (1 - targets)
+        focal_loss *= weight
+        # if sample_weight is not None:
+        #     focal_loss *= sample_weight
         return focal_loss.mean()
 
+# class EnhancedCombinedLoss(nn.Module):
+#     def __init__(self, class_weights=None):
+#         super().__init__()
+#         self.dice_loss = smp.losses.DiceLoss(mode='binary', from_logits=True)
+#         self.focal_loss = WeightedFocalLoss(class_weights=class_weights)
+#         self.lovasz_loss = smp.losses.LovaszLoss(mode='binary', from_logits=True)
+    
+#     def forward(self, inputs, targets):
+#         return (0.3 * self.dice_loss(inputs, targets) +
+#                 0.4 * self.focal_loss(inputs, targets) +
+#                 0.3 * self.lovasz_loss(inputs, targets))
 class EnhancedCombinedLoss(nn.Module):
     def __init__(self, class_weights=None):
         super().__init__()
@@ -270,10 +281,36 @@ class EnhancedCombinedLoss(nn.Module):
         self.focal_loss = WeightedFocalLoss(class_weights=class_weights)
         self.lovasz_loss = smp.losses.LovaszLoss(mode='binary', from_logits=True)
     
-    def forward(self, inputs, targets):
-        return (0.3 * self.dice_loss(inputs, targets) +
-                0.4 * self.focal_loss(inputs, targets) +
-                0.3 * self.lovasz_loss(inputs, targets))
+    def forward(self, inputs, targets, sample_weight=None):
+        dice = self.dice_loss(inputs, targets)
+        focal = self.focal_loss(inputs, targets)
+        lovasz = self.lovasz_loss(inputs, targets)
+
+        combined_loss = 0.3 * dice + 0.4 * focal + 0.3 * lovasz
+
+        if sample_weight is not None:
+            # 假設 sample_weight shape = [B] 或 [B,1,1,1]
+            # 展平成 [B] 並做加權平均
+            sample_weight = sample_weight.view(-1).to(inputs.device)
+            combined_loss = combined_loss.view(-1)  # 保證 batch 維度
+            weighted_loss = (combined_loss * sample_weight).sum() / (sample_weight.sum() + 1e-8)
+            return weighted_loss
+        else:
+            return combined_loss.mean()
+
+
+class FirstPlaceCombinedLoss(nn.Module):
+    def __init__(self, class_weights=None):
+        super().__init__()
+        self.dice_loss = smp.losses.DiceLoss(mode='binary', from_logits=True)
+        self.focal_loss = WeightedFocalLoss(class_weights=class_weights)
+    
+    def forward(self, inputs, targets, sample_weight):
+        if sample_weight is not None:
+            return (0.1 * self.dice_loss(inputs, targets, sample_weight) +
+                    0.4 * self.focal_loss(inputs, targets, sample_weight) +
+                    0.3 * F.binary_cross_entropy_with_logits(inputs, targets, sample_weight))
+    
 
 def get_lossFunc(
     lossFunc, 
@@ -289,8 +326,12 @@ def get_lossFunc(
         criterion = smp.losses.DiceLoss(mode='binary', from_logits=True)
     elif lossFunc == 'lovasz':
         criterion = smp.losses.LovaszLoss(mode='binary', from_logits=True)
-    elif lossFunc == 'combined':
+    elif lossFunc == 'enhancedcombined':
         criterion = EnhancedCombinedLoss(
+            class_weights=class_weights
+        )
+    elif lossFunc == 'firstplacecombined':
+        criterion = FirstPlaceCombinedLoss(
             class_weights=class_weights
         )
     return criterion

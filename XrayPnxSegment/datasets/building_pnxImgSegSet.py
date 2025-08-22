@@ -27,19 +27,27 @@ def sample_subset(
     subset_sample_ratio, 
 ):
     df = pd.DataFrame(data_list)
+    
+    df['cls_prob'] = pd.to_numeric(df['cls_prob'], errors='coerce')  # 轉 float，invalid 變 NaN
+    df = df.dropna(subset=['cls_prob'])
+    df['hard_weight'] = 1.0
+    df.loc[(~df['has_pnx']) & (df['cls_prob'] > 0.5), 'hard_weight'] = 2.0
+    df.loc[df['has_pnx'] & (df['cls_prob'] < 0.5), 'hard_weight'] = 1.5
 
-    # bins = [-1e-9, 0, 0.01, 0.05, 1]
-    # labels = ['none', 'small', 'medium', 'large']
-    # df['ratio_bin'] = pd.cut(df['ratio'], bins=bins, labels=labels, right=False)
 
-    # # set all of 'df['ratio_bin'] are none, then process df['has_pnx'] with qcut (q1, q2, q3, q4)
-    # df['ratio_bin'] = 'none'
-    # mask = df['has_pnx']
-    # df.loc[mask, 'ratio_bin'] = pd.qcut(df.loc[mask, 'ratio'], q=4, labels=['q1','q2','q3','q4'])
 
-    # df['strata'] = df['has_pnx'].astype(int).astype(str) + '_' + df['ratio_bin'].astype(str)
-    # print(f'df: {df.head()}')
-    # print(f'len: {len(df)}')
+    bins = [-1e-9, 0, 0.01, 0.05, 1]
+    labels = ['none', 'small', 'medium', 'large']
+    df['ratio_bin'] = pd.cut(df['ratio'], bins=bins, labels=labels, right=False)
+
+    # set all of 'df['ratio_bin'] are none, then process df['has_pnx'] with qcut (q1, q2, q3, q4)
+    df['ratio_bin'] = 'none'
+    mask = df['has_pnx']
+    df.loc[mask, 'ratio_bin'] = pd.qcut(df.loc[mask, 'ratio'], q=4, labels=['q1','q2','q3','q4'])
+
+    df['strata'] = df['has_pnx'].astype(int).astype(str) + '_' + df['ratio_bin'].astype(str)
+    print(f'df: {df.head()}')
+    print(f'len: {len(df)}')
     # # fuck
     # rest_df, inuse_df = train_test_split(
     #     df,
@@ -49,8 +57,8 @@ def sample_subset(
     # )
     inuse_df = df
 
-    # print(df['strata'].value_counts(normalize=True).head())
-    # print(inuse_df['strata'].value_counts(normalize=True).head())
+    print(df['strata'].value_counts(normalize=True).head())
+    print(inuse_df['strata'].value_counts(normalize=True).head())
 
     show_stats('original', df)
     show_stats('inuse_df', inuse_df)

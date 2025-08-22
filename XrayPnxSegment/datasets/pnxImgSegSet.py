@@ -111,6 +111,8 @@ class pnxImgSegSet(Dataset):
         img_path = os.path.join(self.datapath, self.meta_list[idx]['image_path'])
         mask_path = os.path.join(self.datapath, self.meta_list[idx][self.mask_key])
 
+        hard_weight = self.meta_list[idx]['hard_weight']
+
         image = cv2.imread(img_path)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         # image = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
@@ -139,7 +141,7 @@ class pnxImgSegSet(Dataset):
         if not isinstance(mask, torch.Tensor):
             mask = torch.from_numpy(mask).long()
 
-        return image, mask
+        return image, mask, hard_weight
     
 def validate_dataset(
     dataset
@@ -148,7 +150,7 @@ def validate_dataset(
     
     for i in range(len(dataset)):
         try:
-            image, mask = dataset[i]
+            image, mask, _ = dataset[i]
             
             unique_values = torch.unique(mask)
             

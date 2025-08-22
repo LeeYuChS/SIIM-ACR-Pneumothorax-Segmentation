@@ -21,12 +21,14 @@ from XrayPnxSegment.datasets.building_pnxImgSegSet import (
     crop_mask_to_square, 
     random_square_crop
 )
+from pneumothorax_predictor import predict_pneumothorax
 
 
 ROOT_PATH = os.getcwd()
 # ROOT_PATH = '/home/yasaisen/Desktop/250610'
 RATIO = 0.9  # Subset sample ratio
 
+model_path = "res18_pneumothorax_classifier.pth"
 
 def main():
     data_path = os.path.join(ROOT_PATH, 'siim-acr-pneumothorax', 'png_images')
@@ -41,7 +43,12 @@ def main():
             img_path = os.path.join(data_path, dir_list[idx])
             msk_path = img_path.replace('png_images', 'png_masks')
 
-            img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+            # img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+            
+            cls_prob = predict_pneumothorax(model_path, img_path)
+            cls_prob = f"{cls_prob:.4f}"
+            # print(f"氣胸機率 (via function): {prob2:.4f}")
+
             msk = cv2.imread(msk_path, cv2.IMREAD_GRAYSCALE)
             num_zeros = int(np.count_nonzero(msk == 0))
             num_ones = int(np.count_nonzero(msk == 255))
@@ -71,7 +78,8 @@ def main():
                 'ratio': num_ones / num_zeros, 
                 'cropped_mask_path': full_filename,
                 'coords': coords,
-                'split': split
+                'split': split,
+                'cls_prob': cls_prob
             }]
 
         except Exception as e:
@@ -99,6 +107,7 @@ def main():
         data_list=test_data_list, 
         subset_sample_ratio=RATIO
     )
+
     # train_data_list = []
     # for sample in data_list:
     #     if sample['split'] == 'train':
@@ -125,7 +134,7 @@ def main():
 
     proed_data_list = proed_train_data_list + proed_test_data_list
 
-    file_save_path = 'subset_data_2508132253.json'
+    file_save_path = 'subset_data_2508221615.json'
     with open(file_save_path, "w") as file:
         json.dump(proed_data_list, file, indent=4, default=convert)
 
