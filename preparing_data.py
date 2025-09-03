@@ -47,7 +47,6 @@ def main():
             
             cls_prob = predict_pneumothorax(model_path, img_path)
             cls_prob = f"{cls_prob:.4f}"
-            # print(f"氣胸機率 (via function): {prob2:.4f}")
 
             msk = cv2.imread(msk_path, cv2.IMREAD_GRAYSCALE)
             num_zeros = int(np.count_nonzero(msk == 0))

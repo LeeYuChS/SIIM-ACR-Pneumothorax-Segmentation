@@ -5,9 +5,9 @@ from XrayPnxSegment.models.modeling_segModels import get_DeepLabV3Plus
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-model_weight = r"G:\checkpoint_backup\not_full_dataset_0802\checkpoints\2508020217\best_deeplabv3plus.pth"
-img_path = r"G:\XrayPnxSegment-main\siim-acr-pneumothorax\png_images\32_train_0_.png"
-mask_path = r"G:\XrayPnxSegment-main\siim-acr-pneumothorax\png_masks\32_train_0_.png"
+model_weight = r"G:\checkpoint_backup\multi-stage-blance_training\2508241734_same_resolution\best_deeplabv3plus_stage2.pth"
+img_path = r"G:\XrayPnxSegment-main\siim-acr-pneumothorax\png_images\3_train_1_.png"
+mask_path = r"G:\XrayPnxSegment-main\siim-acr-pneumothorax\png_masks\3_train_1_.png"
 
 model = get_DeepLabV3Plus()
 model.load_state_dict(torch.load(model_weight, weights_only=True)['model_state_dict'])

@@ -5,7 +5,12 @@
  This file is part of a project licensed under the MIT License.
  See the LICENSE file in the project root for more information.
  
- last modified in 2506222348
+
+
+ last modified in 2025-08-23-01:20
+ changed weights punish, epochs
+
+
 """
 
 import torch
@@ -98,7 +103,7 @@ def create_ratio_based_sampler(
     
     selected_indices = []
     
-    # Step 3: Sample from positive strata
+    # Step 3: Sample from positive strata (force to pick positive sample in order to learn positive)
     for k in pos_strata:
         w = strata_weights.get(k, 0)
         if w > 0:
@@ -194,8 +199,8 @@ def create_ratio_based_sampler(
 
 
 def run_pipeline(stages, config):
-    best_deeplabv3_path = None
-    # best_unet_path = None
+    # best_deeplabv3_path = None
+    best_unet_path = None
 
     for idx, stage in enumerate(stages):
         print(f"\n=== Stage {idx} ===")
@@ -256,83 +261,84 @@ def run_pipeline(stages, config):
         )
 
 
-        # TRAIN DEEPLABV3PLUS
+        # # TRAIN DEEPLABV3PLUS
+        # print("\n" + "="*60)
+        # print("Training DeepLabV3Plus")
+        # print("="*60)
+        # deeplabv3_model = get_DeepLabV3Plus(
+        #     device=config['device'],
+        # )
+        
+        # # CRITICAL FIX: Load best weights from previous stage
+        # if idx > 0 and best_deeplabv3_path:
+        #     if os.path.exists(best_deeplabv3_path):
+        #         checkpoint = torch.load(best_deeplabv3_path, weights_only=True)
+        #         deeplabv3_model.load_state_dict(checkpoint['model_state_dict'])
+        #     else:
+        #         raise FileNotFoundError(f"{best_deeplabv3_path} does not exist!")
+        #     print(f"Loading best DeepLabV3Plus weights from: {best_deeplabv3_path}")
+            
+
+        # deeplabv3_optimizer, deeplabv3_scheduler = get_optim(
+        #     model=deeplabv3_model,
+        #     lr=stage["lr"],
+        #     scheduler_type=stage["scheduler"],
+        # )
+        # deeplabv3_history = train_model(
+        #     model=deeplabv3_model, 
+        #     train_loader=train_loader, 
+        #     val_loader=val_loader, 
+        #     criterion=criterion, 
+        #     optimizer=deeplabv3_optimizer, 
+        #     scheduler=deeplabv3_scheduler, 
+        #     num_epochs=stage['epochs'], 
+        #     device=config['device'], 
+        #     model_name=f'deeplabv3plus_stage{idx}', 
+        #     save_dir=config['save_path'],
+        # )
+        # # Update best model path for DeepLabV3Plus
+        # best_deeplabv3_path = os.path.join(config['save_path'], f'best_deeplabv3plus_stage{idx}.pth')
+
+        # TRAIN UNET
         print("\n" + "="*60)
-        print("Training DeepLabV3Plus")
+        print("Training U-Net")
         print("="*60)
-        deeplabv3_model = get_DeepLabV3Plus(
+        unet_model = get_Unet(
             device=config['device'],
         )
         
         # CRITICAL FIX: Load best weights from previous stage
-        if idx > 0 and best_deeplabv3_path:
-            if os.path.exists(best_deeplabv3_path):
-                checkpoint = torch.load(best_deeplabv3_path, weights_only=True)
-                deeplabv3_model.load_state_dict(checkpoint['model_state_dict'])
+        if idx > 0 and best_unet_path:
+            if os.path.exists(best_unet_path):
+                checkpoint = torch.load(best_unet_path, weights_only=True)
+                unet_model.load_state_dict(checkpoint['model_state_dict'])
             else:
-                raise FileNotFoundError(f"{best_deeplabv3_path} does not exist!")
-            print(f"Loading best DeepLabV3Plus weights from: {best_deeplabv3_path}")
-            
+                raise FileNotFoundError(f"{best_unet_path} does not exist!")
+            print(f"Loading best U-Net weights from: {best_unet_path}")
 
-        deeplabv3_optimizer, deeplabv3_scheduler = get_optim(
-            model=deeplabv3_model,
+        unet_optimizer, unet_scheduler = get_optim(
+            model=unet_model,
             lr=stage["lr"],
             scheduler_type=stage["scheduler"],
         )
-        deeplabv3_history = train_model(
-            model=deeplabv3_model, 
+        unet_history = train_model(
+            model=unet_model, 
             train_loader=train_loader, 
             val_loader=val_loader, 
             criterion=criterion, 
-            optimizer=deeplabv3_optimizer, 
-            scheduler=deeplabv3_scheduler, 
+            optimizer=unet_optimizer, 
+            scheduler=unet_scheduler, 
             num_epochs=stage['epochs'], 
             device=config['device'], 
-            model_name=f'deeplabv3plus_stage{idx}', 
+            model_name=f'unet_stage{idx}', 
             save_dir=config['save_path'],
         )
-        # Update best model path for DeepLabV3Plus
-        best_deeplabv3_path = os.path.join(config['save_path'], f'best_deeplabv3plus_stage{idx}.pth')
-
-        ## TRAIN UNET
-        # print("\n" + "="*60)
-        # print("Training U-Net")
-        # print("="*60)
-
-        # unet_model = get_Unet(
-        #     device=config['device'],
-        # )
-
-        # # CRITICAL FIX: Load best weights from previous stage
-        # if idx > 0 and best_unet_path:
-        #     print(f"Loading best U-Net weights from: {best_unet_path}")
-        #     unet_model.load_state_dict(torch.load(best_unet_path))
-
-        # unet_optimizer, unet_scheduler = get_optim(
-        #     model=unet_model,
-        #     lr=config['lr'],
-        #     scheduler_type=stage["scheduler"],
-        # )
-        # unet_history = train_model(
-        #     model=unet_model, 
-        #     train_loader=train_loader, 
-        #     val_loader=val_loader, 
-        #     criterion=criterion, 
-        #     optimizer=unet_optimizer, 
-        #     scheduler=unet_scheduler, 
-        #     num_epochs=stages['epochs'], 
-        #     device=config['device'], 
-        #     model_name=f'unet_stage{idx}', 
-        #     save_dir=config['save_path'],
-        # )
-
-        # # Update best model path for U-Net
-        # best_unet_path = os.path.join(config['save_path'], f'best_unet_stage{idx}.pth')
-
+        # Update best model path for unet
+        best_unet_path = os.path.join(config['save_path'], f'best_unet_stage{idx}.pth')
 
     return {
-        'best_deeplabv3_path': best_deeplabv3_path,
-        # 'best_unet_path': best_unet_path
+        # 'best_deeplabv3_path': best_deeplabv3_path,
+        'best_unet_path': best_unet_path
     }
 
 
@@ -347,7 +353,7 @@ def main():
         'mask_key': 'cropped_mask_path',  # 'mask_path', 'cropped_mask_path'
         'skip_has_pnx': False,
         'calc_class_weights': True,
-        'criterion': 'enhancedcombined',          # using firstplace
+        'criterion': 'firstplacecombined',          # using firstplace
         'root_path': os.getcwd(),
         'meta_path': 'subset_data_2508221615.json',
         'save_path': os.path.join(os.getcwd(), 'checkpoints', datetime.now().strftime("%y%m%d%H%M")),
@@ -360,17 +366,58 @@ def main():
     #     # {"epochs": 30, "lr": 1e-5, "sample_rate": 0.6, "image_size": (768, 768), "scheduler": "CosineAnnealingLR"},
     #     # {"epochs": 40, "lr": 1e-5, "sample_rate": 0.4, "image_size": (1024, 1024), "scheduler": "CosineAnnealingLR"},
     # ]
+    """last modify: 08-28-09:34"""
     stages = [
-        {"epochs": 12, "lr": 1e-3, "sample_rate": 0.8, "image_size": (256, 256), "scheduler": "ReduceLROnPlateau",
+        {"epochs": 30, "lr": 1e-3, "sample_rate": 0.8, "image_size": (768, 768), "scheduler": "ReduceLROnPlateau",
             "strata_weights": {'1_q4':1.0, '1_q3':1.0, '1_q2':0.0, '1_q1':0.0, '0_none':0.2}},  # 早期大病灶 + 少負
 
-        {"epochs": 20, "lr": 1e-5, "sample_rate": 0.6, "image_size": (512, 512), "scheduler": "CosineAnnealingLR",
+        {"epochs": 30, "lr": 1e-5, "sample_rate": 0.6, "image_size": (768, 768), "scheduler": "CosineAnnealingLR",
             "strata_weights": {'1_q4':0.8, '1_q3':0.8, '1_q2':0.5, '1_q1':0.3, '0_none':0.5}},  # 加中/小
 
-        {"epochs": 25, "lr": 1e-5, "sample_rate": 0.4, "image_size": (768, 768), "scheduler": "CosineAnnealingLR",
-            "strata_weights": {'1_q4':0.5, '1_q3':0.5, '1_q2':1.0, '1_q1':1.0, '0_none':1.0}},  # 聚焦小/負
+        {"epochs": 40, "lr": 1e-7, "sample_rate": 0.4, "image_size": (768, 768), "scheduler": "CosineAnnealingLR",
+            "strata_weights": {'1_q4':0.6, '1_q3':0.6, '1_q2':1.0, '1_q1':1.0, '0_none':0.7}},  # 聚焦小/負
     ]
 
+    """last modify: 08-25-22:30
+    stages = [
+        {"epochs": 30, "lr": 1e-3, "sample_rate": 0.8, "image_size": (768, 768), "scheduler": "ReduceLROnPlateau",
+            "strata_weights": {'1_q4':1.0, '1_q3':1.0, '1_q2':0.0, '1_q1':0.0, '0_none':0.2}},  # 早期大病灶 + 少負
+
+        {"epochs": 30, "lr": 1e-5, "sample_rate": 0.6, "image_size": (768, 768), "scheduler": "CosineAnnealingLR",
+            "strata_weights": {'1_q4':0.8, '1_q3':0.8, '1_q2':0.5, '1_q1':0.3, '0_none':0.5}},  # 加中/小
+
+        {"epochs": 40, "lr": 1e-7, "sample_rate": 0.4, "image_size": (768, 768), "scheduler": "CosineAnnealingLR",
+            "strata_weights": {'1_q4':0.4, '1_q3':0.4, '1_q2':1.0, '1_q1':1.0, '0_none':0.6}},  # 聚焦小/負
+    ]
+    """
+
+    """
+    last modify: 08-25-8:51
+    stages = [
+        {"epochs": 20, "lr": 1e-3, "sample_rate": 0.8, "image_size": (768, 768), "scheduler": "ReduceLROnPlateau",
+            "strata_weights": {'1_q4':1.0, '1_q3':1.0, '1_q2':0.0, '1_q1':0.0, '0_none':0.2}},  # 早期大病灶 + 少負
+
+        {"epochs": 20, "lr": 1e-5, "sample_rate": 0.6, "image_size": (768, 768), "scheduler": "CosineAnnealingLR",
+            "strata_weights": {'1_q4':0.8, '1_q3':0.8, '1_q2':0.5, '1_q1':0.3, '0_none':0.5}},  # 加中/小
+
+        {"epochs": 20, "lr": 1e-5, "sample_rate": 0.4, "image_size": (768, 768), "scheduler": "CosineAnnealingLR",
+            "strata_weights": {'1_q4':0.6, '1_q3':0.6, '1_q2':1.0, '1_q1':1.0, '0_none':0.7}},  # 聚焦小/負
+    ]
+    """
+
+    """
+    last modify:  08-24-??:??
+    stages = [
+        {"epochs": 20, "lr": 1e-3, "sample_rate": 0.8, "image_size": (768, 768), "scheduler": "ReduceLROnPlateau",
+            "strata_weights": {'1_q4':1.0, '1_q3':1.0, '1_q2':0.0, '1_q1':0.0, '0_none':0.2}},  # 早期大病灶 + 少負
+
+        {"epochs": 20, "lr": 1e-5, "sample_rate": 0.6, "image_size": (768, 768), "scheduler": "CosineAnnealingLR",
+            "strata_weights": {'1_q4':0.8, '1_q3':0.8, '1_q2':0.5, '1_q1':0.3, '0_none':0.5}},  # 加中/小
+
+        {"epochs": 20, "lr": 1e-5, "sample_rate": 0.4, "image_size": (768, 768), "scheduler": "CosineAnnealingLR",
+            "strata_weights": {'1_q4':0.5, '1_q3':0.5, '1_q2':1.0, '1_q1':1.0, '0_none':1.0}},  # 聚焦小/負
+    ]
+    """
     run_pipeline(stages, config)
 
 

@@ -170,7 +170,7 @@ def train_model(
             if outputs.dim() == 4 and outputs.shape[1] == 1:
                 outputs = outputs.squeeze(1)
             
-            loss = criterion(outputs, masks.float(), sample_weight=weights)
+            loss = criterion(outputs, masks.float(), sample_weight=None)
             loss.backward()
             optimizer.step()
             
@@ -193,7 +193,7 @@ def train_model(
                 if outputs.dim() == 4 and outputs.shape[1] == 1:
                     outputs = outputs.squeeze(1)
                 
-                loss = criterion(outputs, masks.float())
+                loss = criterion(outputs, masks.float(), sample_weight=None)
                 val_loss += loss.item()
                 val_metrics.update(outputs, masks)
                 
@@ -287,16 +287,16 @@ class EnhancedCombinedLoss(nn.Module):
         lovasz = self.lovasz_loss(inputs, targets)
 
         combined_loss = 0.3 * dice + 0.4 * focal + 0.3 * lovasz
-
-        if sample_weight is not None:
-            # 假設 sample_weight shape = [B] 或 [B,1,1,1]
-            # 展平成 [B] 並做加權平均
-            sample_weight = sample_weight.view(-1).to(inputs.device)
-            combined_loss = combined_loss.view(-1)  # 保證 batch 維度
-            weighted_loss = (combined_loss * sample_weight).sum() / (sample_weight.sum() + 1e-8)
-            return weighted_loss
-        else:
-            return combined_loss.mean()
+        return combined_loss.mean()
+        # if sample_weight is not None:
+        #     # 假設 sample_weight shape = [B] 或 [B,1,1,1]
+        #     # 展平成 [B] 並做加權平均
+        #     sample_weight = sample_weight.view(-1).to(inputs.device)
+        #     combined_loss = combined_loss.view(-1)  # 保證 batch 維度
+        #     weighted_loss = (combined_loss * sample_weight).sum() / (sample_weight.sum() + 1e-8)
+        #     return weighted_loss
+        # else:
+        #     return combined_loss.mean()
 
 
 class FirstPlaceCombinedLoss(nn.Module):
@@ -310,6 +310,10 @@ class FirstPlaceCombinedLoss(nn.Module):
             return (0.1 * self.dice_loss(inputs, targets, sample_weight) +
                     0.4 * self.focal_loss(inputs, targets, sample_weight) +
                     0.3 * F.binary_cross_entropy_with_logits(inputs, targets, sample_weight))
+        else:
+            return (0.1 * self.dice_loss(inputs, targets) +
+                    0.4 * self.focal_loss(inputs, targets) +
+                    0.3 * F.binary_cross_entropy_with_logits(inputs, targets))
     
 
 def get_lossFunc(
